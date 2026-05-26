@@ -1,0 +1,326 @@
+export const meta = {
+  title: '商户管理后台：企业级前后端分离实战',
+  date: '2024-09-20',
+  readingTime: '10 min',
+  category: 'Backend',
+}
+
+# 商户管理后台：企业级前后端分离实战
+
+基于 Spring Boot 3 + Vue 3 构建的企业级商户管理后台系统，实现前后端分离、多租户隔离、权限精细化控制，完整覆盖从需求分析到系统测试的全生命周期。
+
+## 项目背景
+
+本项目是防灾科技学院数据科学与大数据技术专业的必修实践课程，以企业真实开发流程为标准，完成一套完整的商户管理后台系统。项目涵盖用户认证、权限管理、多租户隔离、动态路由菜单等核心能力。
+
+## 技术架构
+
+### 后端技术栈
+- **Java 17** + **Spring Boot 3.5.9** + **Sofa Boot 4.2.0**
+- **MyBatis Plus** / **Spring Data JPA**
+- **Spring Security** + **JWT 4.4.0** + **RSA 加密**
+- **MySQL 8.3.0** + **Redis 5.0+**
+- **Hutool 5.8.27** + **OpenTelemetry**
+
+### 前端技术栈
+- **Vue 3.4.27** + **TypeScript 5.4.5**
+- **Vite 5.2.11** + **Element Plus 2.7.1**
+- **Pinia 2.1.7** + **Vue Router 4.3.2**
+- **Axios 1.6.8** + **pnpm 8.6.10+**
+
+## 核心功能实现
+
+### 1. 登录认证流程
+
+实现基于 RSA + JWT 的安全认证机制，前端使用 RSA 公钥加密密码，后端使用私钥解密，通过 Spring Security 认证后生成 JWT Token。
+
+```java
+@Service
+public class AuthService {
+    public LoginResponse login(LoginRequest request) {
+        String decryptedPassword = rsaKeyProvider.decrypt(request.getPassword());
+        
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                request.getUsername(),
+                decryptedPassword
+            )
+        );
+        
+        String token = jwtTokenProvider.generateToken(authentication);
+        return LoginResponse.builder()
+            .token(token)
+            .userInfo(convertToUserInfo(authentication))
+            .build();
+    }
+}
+```
+
+### 2. 多租户隔离实现
+
+通过过滤器实现租户上下文管理，优先从请求头读取租户信息，无请求头则从 JWT Token 解析，登录接口按用户名自动匹配租户标识。
+
+```java
+@Component
+@Order(1)
+public class TenantFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(
+        HttpServletRequest request,
+        HttpServletResponse response,
+        FilterChain filterChain
+    ) throws ServletException, IOException {
+        try {
+            String tenantId = resolveTenantId(request);
+            if (tenantId != null) {
+                TenantContext.setCurrentTenant(tenantId);
+            }
+            filterChain.doFilter(request, response);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+}
+```
+
+MyBatis Plus 拦截器实现数据隔离：
+
+```java
+@Component
+public class TenantInterceptor implements InnerInterceptor {
+    @Override
+    public void beforeQuery(Executor executor, MappedStatement ms, 
+                           Object parameter, RowBounds rowBounds, 
+                           ResultHandler resultHandler, BoundSql boundSql) {
+        String tenantId = TenantContext.getCurrentTenant();
+        if (tenantId != null) {
+            PluginUtils.MPBoundSql mpBs = PluginUtils.mpBoundSql(boundSql);
+            mpBs.sql(addTenantCondition(mpBs.sql(), tenantId));
+        }
+    }
+}
+```
+
+### 3. RBAC 权限控制体系
+
+基于角色的访问控制（Role-Based Access Control），实现用户→角色→权限的完整链路。
+
+```java
+@Target({ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RequiresPermission {
+    String value();
+}
+
+@RestController
+@RequestMapping("/api/v6/users")
+public class UserController {
+    @GetMapping
+    @RequiresPermission("user:list")
+    public Result<List<User>> list() {
+        return Result.success(userService.list());
+    }
+    
+    @PostMapping
+    @RequiresPermission("user:create")
+    public Result<User> create(@RequestBody User user) {
+        return Result.success(userService.create(user));
+    }
+}
+```
+
+### 4. 动态路由与菜单生成
+
+前端根据权限动态生成路由与菜单：
+
+```typescript
+export const generateRoutes = (permissions: Permission[]): RouteRecordRaw[] => {
+  const menuPermissions = permissions.filter(p => p.type === 'menu');
+  
+  const buildRouteTree = (parentId: number | null): RouteRecordRaw[] => {
+    return menuPermissions
+      .filter(p => p.parentId === parentId)
+      .map(permission => ({
+        path: permission.path,
+        name: permission.code,
+        component: () => import(`@/views${permission.component}`),
+        meta: {
+          title: permission.name,
+          icon: permission.icon,
+          permissions: permissions
+            .filter(p => p.parentId === permission.id && p.type === 'button')
+            .map(p => p.code),
+        },
+        children: buildRouteTree(permission.id),
+      }));
+  };
+  
+  return buildRouteTree(null);
+};
+```
+
+按钮权限控制：
+
+```vue
+<template>
+  <div>
+    <el-button
+      v-if="hasPermission('user:create')"
+      type="primary"
+      @click="handleCreate"
+    >
+      新增用户
+    </el-button>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { usePermission } from '@/composables/usePermission';
+
+const { hasPermission } = usePermission();
+</script>
+```
+
+### 5. Spring Security 配置
+
+```java
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> 
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/v6/auth/**").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        
+        return http.build();
+    }
+}
+```
+
+## 数据库设计
+
+核心表结构包括用户表、角色表、权限表、组织机构表、岗位表，以及用户角色关联表、角色权限关联表，支持多租户数据隔离。
+
+```sql
+CREATE TABLE bas_user (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    tenant_id VARCHAR(50) NOT NULL,
+    org_id BIGINT,
+    status TINYINT DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tenant (tenant_id)
+);
+
+CREATE TABLE bas_role (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50) NOT NULL,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    tenant_id VARCHAR(50) NOT NULL,
+    INDEX idx_tenant (tenant_id)
+);
+
+CREATE TABLE bas_permission (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50) NOT NULL,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    type VARCHAR(20) NOT NULL,
+    path VARCHAR(255),
+    parent_id BIGINT,
+    INDEX idx_parent (parent_id)
+);
+```
+
+## 系统测试
+
+### 1. 接口测试
+
+使用 Swagger 进行接口测试，配置 JWT 认证：
+
+```java
+@Configuration
+@OpenAPIDefinition(
+    info = @Info(
+        title = "商户管理后台 API",
+        version = "1.0"
+    )
+)
+public class SwaggerConfig {
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+            .components(new Components()
+                .addSecuritySchemes("bearer-jwt",
+                    new SecurityScheme()
+                        .type(SecurityScheme.Type.HTTP)
+                        .scheme("bearer")
+                        .bearerFormat("JWT")
+                )
+            );
+    }
+}
+```
+
+### 2. 单元测试
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+public class UserControllerTest {
+    @Autowired
+    private MockMvc mockMvc;
+    
+    @Test
+    @WithMockUser(username = "admin", authorities = {"user:list"})
+    public void testListUsers() throws Exception {
+        mockMvc.perform(get("/api/v6/users")
+                .header("X-Tenant", "tenant1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").isArray());
+    }
+}
+```
+
+## 技术挑战与解决方案
+
+### 挑战 1：多租户数据隔离
+**解决方案**：ThreadLocal + MyBatis 拦截器实现透明的数据隔离
+
+### 挑战 2：权限控制粒度
+**解决方案**：RBAC 模型 + 自定义注解 + AOP 实现菜单级和按钮级权限控制
+
+### 挑战 3：密码安全传输
+**解决方案**：RSA 非对称加密 + HTTPS 传输
+
+### 挑战 4：前后端联调
+**解决方案**：Swagger 文档 + 统一返回格式 + 错误码规范
+
+## 项目成果
+
+- 完成企业级商户管理后台系统开发
+- 实现前后端分离架构，支持多租户隔离
+- 掌握 Spring Boot + Vue 3 技术栈
+- 熟悉权限系统、认证安全等核心业务场景
+- 提升工程化思维与代码规范意识
+
+## 技术启示
+
+1. **前后端分离是趋势**：清晰的职责划分，提升开发效率
+2. **安全是第一要务**：密码加密、Token 认证、权限校验缺一不可
+3. **多租户设计需谨慎**：数据隔离、上下文管理、线程安全都要考虑
+4. **代码规范很重要**：统一的返回格式、错误处理、日志记录提升可维护性
+5. **测试驱动开发**：单元测试、接口测试保证代码质量
+
+通过本次商户管理后台开发，我真正理解了前后端分离的工程价值，掌握了 Spring Boot + Vue 3 企业级技术栈，熟悉了权限系统、多租户、认证安全等高频业务场景。从最开始的环境搭建报错、数据库设计不合理，到后来能独立完成模块开发、bug 定位、性能优化，我不仅提升了编码能力，更培养了工程化思维、规范意识、问题解决能力。

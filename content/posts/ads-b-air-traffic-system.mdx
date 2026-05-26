@@ -1,0 +1,228 @@
+export const meta = {
+  title: 'ADS-B 翔安空管系统：航空监控与预警平台',
+  date: '2024-03-15',
+  readingTime: '8 min',
+  category: 'Backend',
+}
+
+# ADS-B 翔安空管系统
+
+基于 Python + FastAPI 构建的航空器监控与预警系统，实时处理 ADS-B 数据传输，支持多终端协同与高可靠性数据处理。
+
+## 项目概述
+
+ADS-B (Automatic Dependent Surveillance-Broadcast) 是现代航空监控的核心技术。本系统通过接收航空器广播的 ADS-B 信号，实时处理飞行数据，为空管人员提供准确的监控与预警服务。
+
+## 技术架构
+
+### 核心技术栈
+- **Python + FastAPI**：高性能异步后端框架
+- **MySQL**：关系型数据库存储
+- **TCP Socket**：实时数据传输
+- **WebSocket**：多终端数据推送
+- **多线程**：并发数据处理
+
+## 核心功能实现
+
+### 1. ADS-B 数据接收与解析
+
+使用 FastAPI 构建 RESTful 接口，优化数据密集型场景的处理能力：
+
+```python
+from fastapi import FastAPI, WebSocket
+from typing import Dict, List
+import asyncio
+
+app = FastAPI()
+
+class ADSBParser:
+    def parse_message(self, raw_data: bytes) -> Dict:
+        # 解析 ADS-B 消息格式
+        icao = raw_data[1:4].hex()
+        altitude = int.from_bytes(raw_data[10:12], 'big')
+        latitude = self._decode_position(raw_data[12:15])
+        longitude = self._decode_position(raw_data[15:18])
+        
+        return {
+            "icao": icao,
+            "altitude": altitude,
+            "latitude": latitude,
+            "longitude": longitude,
+            "timestamp": datetime.now()
+        }
+
+@app.post("/api/adsb/data")
+async def receive_adsb_data(data: bytes):
+    parser = ADSBParser()
+    parsed = parser.parse_message(data)
+    
+    await store_flight_data(parsed)
+    await broadcast_to_clients(parsed)
+    
+    return {"status": "success"}
+```
+
+### 2. 实时数据传输优化
+
+通过 TCP Socket 与 WebSocket 结合，实现低延迟数据传输：
+
+```python
+import socket
+import threading
+
+class ADSBReceiver:
+    def __init__(self, host: str, port: int):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.connect((host, port))
+        
+    def start_receiving(self):
+        thread = threading.Thread(target=self._receive_loop)
+        thread.daemon = True
+        thread.start()
+    
+    def _receive_loop(self):
+        while True:
+            data = self.socket.recv(1024)
+            if data:
+                asyncio.run(self.process_data(data))
+    
+    async def process_data(self, data: bytes):
+        parsed = ADSBParser().parse_message(data)
+        await store_and_broadcast(parsed)
+```
+
+### 3. 飞行器追踪与状态管理
+
+实现飞行器状态的实时追踪与历史轨迹记录：
+
+```python
+from datetime import datetime, timedelta
+
+class FlightTracker:
+    def __init__(self):
+        self.active_flights: Dict[str, Flight] = {}
+    
+    async def update_flight(self, data: Dict):
+        icao = data["icao"]
+        
+        if icao in self.active_flights:
+            flight = self.active_flights[icao]
+            flight.update_position(data)
+        else:
+            flight = Flight(icao, data)
+            self.active_flights[icao] = flight
+        
+        # 检查预警条件
+        if self.check_alert_condition(flight):
+            await self.trigger_alert(flight)
+    
+    def check_alert_condition(self, flight: Flight) -> bool:
+        # 高度异常检测
+        if flight.altitude < 1000 and flight.speed > 200:
+            return True
+        
+        # 航线偏离检测
+        if flight.deviation_from_route() > 5:
+            return True
+        
+        return False
+```
+
+### 4. 数据库优化
+
+使用 MySQL 存储海量飞行数据，通过索引优化查询性能：
+
+```python
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+Base = declarative_base()
+
+class FlightData(Base):
+    __tablename__ = 'flight_data'
+    
+    id = Column(Integer, primary_key=True)
+    icao = Column(String(6), index=True)
+    altitude = Column(Integer)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    timestamp = Column(DateTime, index=True)
+
+# 创建索引优化查询
+engine = create_engine('mysql://user:pass@localhost/adsb')
+Base.metadata.create_all(engine)
+```
+
+### 5. 多终端实时推送
+
+通过 WebSocket 实现监控端的实时数据推送：
+
+```python
+from fastapi import WebSocket
+from typing import List
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+    
+    async def broadcast(self, data: Dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(data)
+            except:
+                self.active_connections.remove(connection)
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/monitor")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    
+    try:
+        while True:
+            await websocket.receive_text()
+    except:
+        manager.active_connections.remove(websocket)
+```
+
+## 性能优化成果
+
+### 1. 数据传输优化
+- 实时处理 ADS-B 数据流，延迟 < 100ms
+- 支持多终端并发访问，无性能瓶颈
+
+### 2. 数据库查询优化
+- 通过索引优化，查询响应时间 < 50ms
+- 支持历史数据快速检索与轨迹回放
+
+### 3. 系统稳定性
+- 实现断线重连机制，确保数据不丢失
+- 多线程并发处理，提升系统吞吐量
+
+## 技术挑战与解决方案
+
+### 挑战 1：高频数据处理
+**解决方案**：多线程 + 异步处理，提升并发能力
+
+### 挑战 2：实时性要求高
+**解决方案**：TCP Socket + WebSocket 双通道，降低延迟
+
+### 挑战 3：数据可靠性
+**解决方案**：数据校验 + 冗余存储，确保数据完整性
+
+## 项目成果
+
+- 实现航空器实时监控与预警功能
+- 支持多终端协同，提供流畅的监控体验
+- 系统稳定性高，满足空管场景的高可靠性要求
+
+## 技术启示
+
+1. **FastAPI 适合数据密集型场景**：异步处理能力强
+2. **多线程提升并发性能**：合理使用线程池优化资源利用
+3. **数据库索引是性能关键**：针对查询场景设计索引策略

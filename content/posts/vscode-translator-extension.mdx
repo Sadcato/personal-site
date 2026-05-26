@@ -1,0 +1,369 @@
+export const meta = {
+  title: '中英文注释翻译器：VSCode 扩展开发实践',
+  date: '2024-05-10',
+  readingTime: '6 min',
+  category: 'Tools',
+}
+
+# 中英文注释翻译器
+
+一个 Visual Studio Code 扩展，提供实时的中英双向注释翻译功能，帮助开发者在多语言环境下提高代码的可读性和理解性。
+
+## 项目概述
+
+在多语言开发团队中，代码注释的语言障碍常常影响协作效率。中英文注释翻译器通过快捷键实现即时翻译，支持中文翻译为英文并插入代码，以及英文悬浮翻译为中文，既便捷又不干扰代码阅读。
+
+## 功能特点
+
+- **中文翻译至英文**：`Ctrl+Y` 自动翻译并在下一行显示
+- **悬浮翻译英文至中文**：`Alt+Y` 在悬浮窗口显示翻译
+- **无缝集成**：与 VSCode 编辑器深度集成
+- **实时响应**：快速翻译，不影响编码流程
+
+## 技术架构
+
+### 核心技术栈
+- **TypeScript**：类型安全的扩展开发
+- **VSCode Extension API**：编辑器集成
+- **翻译 API**：外部翻译服务集成
+- **Webpack**：扩展打包与优化
+
+## 核心功能实现
+
+### 1. 扩展激活与命令注册
+
+使用 VSCode Extension API 注册翻译命令：
+
+```typescript
+import * as vscode from 'vscode';
+
+export function activate(context: vscode.ExtensionContext) {
+    // 注册中文翻译为英文命令
+    let translateToEnglish = vscode.commands.registerCommand(
+        'translator.translateToEnglish',
+        async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) return;
+            
+            const selection = editor.selection;
+            const text = editor.document.getText(selection);
+            
+            if (!text) {
+                vscode.window.showWarningMessage('请先选中要翻译的文本');
+                return;
+            }
+            
+            const translated = await translateText(text, 'zh-CN', 'en');
+            await insertTranslation(editor, selection, translated);
+        }
+    );
+    
+    // 注册英文悬浮翻译命令
+    let hoverTranslate = vscode.commands.registerCommand(
+        'translator.hoverTranslate',
+        async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) return;
+            
+            const selection = editor.selection;
+            const text = editor.document.getText(selection);
+            
+            if (!text) return;
+            
+            const translated = await translateText(text, 'en', 'zh-CN');
+            showHoverTranslation(editor, selection, translated);
+        }
+    );
+    
+    context.subscriptions.push(translateToEnglish, hoverTranslate);
+}
+```
+
+### 2. 翻译服务集成
+
+封装翻译 API 调用，支持多种翻译服务：
+
+```typescript
+interface TranslationService {
+    translate(text: string, from: string, to: string): Promise<string>;
+}
+
+class GoogleTranslateService implements TranslationService {
+    private apiKey: string;
+    private endpoint = 'https://translation.googleapis.com/language/translate/v2';
+    
+    constructor(apiKey: string) {
+        this.apiKey = apiKey;
+    }
+    
+    async translate(text: string, from: string, to: string): Promise<string> {
+        try {
+            const response = await fetch(this.endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    q: text,
+                    source: from,
+                    target: to,
+                    key: this.apiKey,
+                }),
+            });
+            
+            const data = await response.json();
+            return data.data.translations[0].translatedText;
+        } catch (error) {
+            throw new Error(`翻译失败: ${error.message}`);
+        }
+    }
+}
+
+async function translateText(
+    text: string,
+    from: string,
+    to: string
+): Promise<string> {
+    const config = vscode.workspace.getConfiguration('translator');
+    const apiKey = config.get<string>('apiKey');
+    
+    if (!apiKey) {
+        throw new Error('请先配置翻译 API Key');
+    }
+    
+    const service = new GoogleTranslateService(apiKey);
+    return await service.translate(text, from, to);
+}
+```
+
+### 3. 文本插入与编辑
+
+实现翻译结果的智能插入：
+
+```typescript
+async function insertTranslation(
+    editor: vscode.TextEditor,
+    selection: vscode.Selection,
+    translated: string
+): Promise<void> {
+    const line = selection.end.line;
+    const lineText = editor.document.lineAt(line).text;
+    const indent = lineText.match(/^\s*/)?.[0] || '';
+    
+    // 检测注释风格
+    const commentStyle = detectCommentStyle(editor.document.languageId);
+    const translatedComment = formatComment(translated, commentStyle, indent);
+    
+    await editor.edit(editBuilder => {
+        const insertPosition = new vscode.Position(line + 1, 0);
+        editBuilder.insert(insertPosition, translatedComment + '\n');
+    });
+}
+
+function detectCommentStyle(languageId: string): string {
+    const singleLineComments: { [key: string]: string } = {
+        'javascript': '//',
+        'typescript': '//',
+        'python': '#',
+        'java': '//',
+        'go': '//',
+        'rust': '//',
+    };
+    
+    return singleLineComments[languageId] || '//';
+}
+
+function formatComment(
+    text: string,
+    commentStyle: string,
+    indent: string
+): string {
+    return `${indent}${commentStyle} ${text}`;
+}
+```
+
+### 4. 悬浮提示实现
+
+使用 Hover Provider 实现悬浮翻译：
+
+```typescript
+function showHoverTranslation(
+    editor: vscode.TextEditor,
+    selection: vscode.Selection,
+    translated: string
+): void {
+    const decoration = vscode.window.createTextEditorDecorationType({
+        after: {
+            contentText: ` 💬 ${translated}`,
+            color: new vscode.ThemeColor('editorInfo.foreground'),
+            fontStyle: 'italic',
+        },
+    });
+    
+    editor.setDecorations(decoration, [selection]);
+    
+    // 3秒后自动清除
+    setTimeout(() => {
+        decoration.dispose();
+    }, 3000);
+}
+
+// 注册 Hover Provider
+class TranslationHoverProvider implements vscode.HoverProvider {
+    async provideHover(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        token: vscode.CancellationToken
+    ): Promise<vscode.Hover | undefined> {
+        const range = document.getWordRangeAtPosition(position);
+        if (!range) return;
+        
+        const word = document.getText(range);
+        
+        // 检测是否为英文
+        if (!/^[a-zA-Z\s]+$/.test(word)) return;
+        
+        try {
+            const translated = await translateText(word, 'en', 'zh-CN');
+            const markdown = new vscode.MarkdownString();
+            markdown.appendMarkdown(`**翻译**: ${translated}`);
+            
+            return new vscode.Hover(markdown, range);
+        } catch (error) {
+            return;
+        }
+    }
+}
+```
+
+### 5. 配置管理
+
+实现扩展配置项：
+
+```typescript
+// package.json 配置定义
+{
+  "contributes": {
+    "configuration": {
+      "title": "中英文注释翻译器",
+      "properties": {
+        "translator.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "翻译 API Key"
+        },
+        "translator.service": {
+          "type": "string",
+          "enum": ["google", "baidu", "youdao"],
+          "default": "google",
+          "description": "翻译服务提供商"
+        },
+        "translator.autoTranslate": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否自动翻译悬浮提示"
+        }
+      }
+    }
+  }
+}
+```
+
+## 性能优化
+
+### 1. 翻译结果缓存
+
+实现本地缓存减少 API 调用：
+
+```typescript
+class TranslationCache {
+    private cache: Map<string, string> = new Map();
+    private maxSize = 1000;
+    
+    get(key: string): string | undefined {
+        return this.cache.get(key);
+    }
+    
+    set(key: string, value: string): void {
+        if (this.cache.size >= this.maxSize) {
+            const firstKey = this.cache.keys().next().value;
+            this.cache.delete(firstKey);
+        }
+        this.cache.set(key, value);
+    }
+    
+    clear(): void {
+        this.cache.clear();
+    }
+}
+
+const cache = new TranslationCache();
+
+async function translateWithCache(
+    text: string,
+    from: string,
+    to: string
+): Promise<string> {
+    const cacheKey = `${from}:${to}:${text}`;
+    const cached = cache.get(cacheKey);
+    
+    if (cached) {
+        return cached;
+    }
+    
+    const translated = await translateText(text, from, to);
+    cache.set(cacheKey, translated);
+    
+    return translated;
+}
+```
+
+### 2. 请求防抖
+
+避免频繁触发翻译请求：
+
+```typescript
+function debounce<T extends (...args: any[]) => any>(
+    func: T,
+    wait: number
+): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout | null = null;
+    
+    return function(...args: Parameters<T>) {
+        if (timeout) {
+            clearTimeout(timeout);
+        }
+        
+        timeout = setTimeout(() => {
+            func(...args);
+        }, wait);
+    };
+}
+
+const debouncedTranslate = debounce(translateText, 300);
+```
+
+## 技术挑战与解决方案
+
+### 挑战 1：网络延迟影响用户体验
+**解决方案**：实现本地缓存 + 加载提示，优化感知性能
+
+### 挑战 2：多种编程语言的注释格式
+**解决方案**：根据语言 ID 自动检测注释风格
+
+### 挑战 3：API 调用成本控制
+**解决方案**：缓存机制 + 防抖策略，减少不必要的请求
+
+## 项目成果
+
+- 支持 `Ctrl+Y` 和 `Alt+Y` 快捷键翻译
+- 实现中英双向翻译功能
+- 集成多种翻译服务提供商
+- 提供配置项自定义翻译行为
+
+## 技术启示
+
+1. **VSCode Extension API 功能强大**：提供丰富的编辑器集成能力
+2. **缓存是性能优化的关键**：减少网络请求，提升响应速度
+3. **用户体验需精心设计**：悬浮提示不干扰代码阅读
+4. **配置灵活性很重要**：支持多种翻译服务，满足不同需求
