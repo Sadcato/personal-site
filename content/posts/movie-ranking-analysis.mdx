@@ -1,0 +1,245 @@
+export const meta = {
+  title: '中外电影榜单比较研究：文化偏差的数据科学分析',
+  date: '2024-12-05',
+  readingTime: '9 min',
+  category: 'Data Science',
+}
+
+# 中外电影榜单比较研究：文化偏差的数据科学分析
+
+通过爬取豆瓣 Top250、IMDb Top250 和 TSPDT Top1000 三大电影榜单，进行跨文化比较分析、机器学习建模和可视化展示，揭示中外电影经典认同的文化偏差模式。
+
+## 项目背景
+
+电影榜单是文化认同的镜像。豆瓣、IMDb、TSPDT 作为中外最具影响力的评价平台，榜单差异背后隐藏着深层的文化偏好。本项目通过数据科学方法，系统性揭示这些差异。
+
+## 研究成果
+
+- 构建 1502 部电影的跨平台数据集
+- 生成 36 个高质量可视化图表
+- 实现 AUC 0.85 的经典预测模型
+- 发现跨平台共同经典仅 35 部（14%）
+
+## 技术架构
+
+### 核心技术栈
+- **Python 3.12** + **Pandas 2.2.2**
+- **Scikit-learn 1.5.1** - 机器学习
+- **Matplotlib + Seaborn** - 静态可视化
+- **Pyecharts 2.0.6** - 交互可视化
+- **Selenium + Undetected-ChromeDriver** - 动态爬取
+
+## 核心功能实现
+
+### 1. 差异化爬虫策略
+
+豆瓣使用静态页面抓取：
+
+```python
+import requests
+from bs4 import BeautifulSoup
+
+class DoubanCrawler:
+    def crawl_top250(self):
+        all_movies = []
+        for start in range(0, 250, 25):
+            url = f"https://movie.douban.com/top250?start={start}"
+            soup = BeautifulSoup(requests.get(url).text, 'html.parser')
+            
+            for item in soup.select('.item'):
+                movie = {
+                    'rank': item.select_one('.pic em').text,
+                    'title': item.select_one('.title').text,
+                    'rating': item.select_one('.rating_num').text,
+                }
+                all_movies.append(movie)
+            
+            time.sleep(1)
+        return all_movies
+```
+
+IMDb 使用 Selenium 处理动态内容：
+
+```python
+import undetected_chromedriver as uc
+
+class IMDbCrawler:
+    def crawl_top250(self):
+        driver = uc.Chrome()
+        driver.get('https://www.imdb.com/chart/top/')
+        
+        movies = []
+        for row in driver.find_elements(By.CSS_SELECTOR, 'tbody tr'):
+            title_elem = row.find_element(By.CSS_SELECTOR, '.titleColumn a')
+            title_elem.click()
+            time.sleep(0.5)
+            
+            genres = self.extract_genres_from_modal()
+            movies.append({'title': title_elem.text, 'genres': genres})
+        
+        return movies
+```
+
+### 2. 跨平台电影匹配
+
+渐进式匹配策略：标题 → 标题+年份 → 导演+年份：
+
+```python
+class MovieMatcher:
+    def find_match(self, target, source_df):
+        target_title = self.latinize_title(target['title'])
+        
+        match = source_df[source_df['title_latin'] == target_title]
+        if not match.empty:
+            return match.iloc[0]
+        
+        match = source_df[
+            (source_df['title_latin'] == target_title) & 
+            (source_df['year'] == target['year'])
+        ]
+        if not match.empty:
+            return match.iloc[0]
+        
+        match = source_df[
+            (source_df['director_norm'] == target['director_norm']) & 
+            (source_df['year'] == target['year'])
+        ]
+        return match.iloc[0] if not match.empty else None
+```
+
+### 3. 文化偏差量化
+
+创新性构建偏差指数：
+
+```python
+class BiasAnalyzer:
+    def calculate_genre_bias(self, df):
+        genre_stats = []
+        
+        for genre in self.get_all_genres(df):
+            genre_movies = df[df['genres'].str.contains(genre)]
+            total = len(genre_movies)
+            international = genre_movies['is_international_canon'].sum()
+            
+            bias_index = (total - international) / total if total > 0 else 0
+            
+            genre_stats.append({
+                'genre': genre,
+                'bias_index': bias_index,
+                'interpretation': self.interpret_bias(bias_index),
+            })
+        
+        return pd.DataFrame(genre_stats)
+    
+    def interpret_bias(self, bias_index):
+        if bias_index > 0.7:
+            return '强本土偏好'
+        elif bias_index > 0.4:
+            return '中等本土偏好'
+        else:
+            return '跨文化认同'
+```
+
+### 4. 机器学习预测
+
+分层建模：可解释基线 → Bagging → Boosting → 集成融合：
+
+```python
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+
+class CanonPredictionModel:
+    def train_models(self, X_train, y_train):
+        self.models = {
+            'baseline': LogisticRegression(max_iter=1000),
+            'bagging': RandomForestClassifier(n_estimators=100),
+            'boosting': GradientBoostingClassifier(n_estimators=100),
+        }
+        
+        for name, model in self.models.items():
+            model.fit(X_train, y_train)
+    
+    def ensemble_predict(self, X_test):
+        predictions = [
+            model.predict_proba(X_test)[:, 1] 
+            for model in self.models.values()
+        ]
+        return np.mean(predictions, axis=0)
+```
+
+### 5. 可视化系统
+
+20+ 种图表类型：
+
+```python
+class VisualizationEngine:
+    def plot_genre_distribution(self, df):
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        genres = df['genres'].explode().value_counts().head(10)
+        ax.bar(genres.index, genres.values)
+        ax.set_title('类型分布对比')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig('genre_distribution.png', dpi=300)
+    
+    def plot_interactive_map(self, country_stats):
+        from pyecharts.charts import Map
+        
+        map_chart = (
+            Map()
+            .add("电影数量", 
+                 [list(z) for z in zip(country_stats['country'], country_stats['count'])],
+                 "world")
+            .set_global_opts(title_opts=opts.TitleOpts(title="全球电影分布"))
+        )
+        map_chart.render('world_map.html')
+```
+
+## 研究发现
+
+### 1. 类型偏差
+- 犯罪惊悚类型更易跨文化传播
+- 爱情动画类型更具本土特征
+
+### 2. 地理偏差
+- 美国电影占据全球主导
+- 日本电影在豆瓣偏好更高
+
+### 3. 年代特征
+- 豆瓣集中于 1990s-2000s
+- IMDb 覆盖更长时间跨度
+
+### 4. 预测模型
+- 集成模型 AUC 达 0.85
+- 识别出经典形成的五大关键因素
+
+## 技术挑战与解决方案
+
+### 挑战 1：IMDb 反爬机制
+**解决方案**：undetected-chromedriver 绕过检测
+
+### 挑战 2：跨平台匹配
+**解决方案**：渐进式匹配 + 标识符归一化
+
+### 挑战 3：文化偏差量化
+**解决方案**：创新性偏差指数构建
+
+### 挑战 4：模型可解释性
+**解决方案**：分层建模 + 特征重要性分析
+
+## 项目成果
+
+- 1502 部电影的跨平台数据集
+- 36 个高质量可视化图表
+- AUC 0.85 的经典预测模型
+- 完整的研究报告
+
+## 技术启示
+
+1. **差异化爬虫策略很重要**：针对平台特点设计
+2. **数据匹配需要多轮策略**：单一方式无法覆盖
+3. **文化偏差需要创新指标**：传统方法难以量化
+4. **可视化是研究支撑**：图表让结论更有说服力
+
+本项目系统掌握了数据科学研究的完整流程，从数据采集、清洗、分析到建模、可视化，体现了工程化思维与学术严谨性的结合。
