@@ -6,11 +6,18 @@ import type { GalleryItem } from '@/lib/gallery'
 
 export default function Work() {
   // Server Component: fetch from S3-compatible storage
-  const itemsPromise = Promise.all([
-    listGalleryItems('People', 48),
-    listGalleryItems('Animals', 48),
-    listGalleryItems('Landscapes', 48),
-  ]).then((all) => all.flat())
+  const flatBucket =
+    (process.env.GALLERY_PREFIX_PEOPLE ?? '') === '' &&
+    (process.env.GALLERY_PREFIX_ANIMALS ?? '') === '' &&
+    (process.env.GALLERY_PREFIX_LANDSCAPES ?? '') === ''
+
+  const itemsPromise = flatBucket
+    ? listGalleryItems('People', 200)
+    : Promise.all([
+        listGalleryItems('People', 48),
+        listGalleryItems('Animals', 48),
+        listGalleryItems('Landscapes', 48),
+      ]).then((all) => all.flat())
 
   return (
     <main className="min-h-screen">
@@ -23,5 +30,9 @@ export default function Work() {
 
 async function GallerySection({ itemsPromise }: { itemsPromise: Promise<GalleryItem[]> }) {
   const items = await itemsPromise.catch(() => [])
-  return <GalleryClient initialItems={items} />
+  const showFilters =
+    (process.env.GALLERY_PREFIX_PEOPLE ?? '') !== '' ||
+    (process.env.GALLERY_PREFIX_ANIMALS ?? '') !== '' ||
+    (process.env.GALLERY_PREFIX_LANDSCAPES ?? '') !== ''
+  return <GalleryClient initialItems={items} showFilters={showFilters} />
 }

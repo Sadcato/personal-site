@@ -12,8 +12,10 @@ type FilterValue = 'All' | GalleryCategory
 
 export default function GalleryClient({
   initialItems,
+  showFilters = true,
 }: {
   initialItems: Array<GalleryItem>
+  showFilters?: boolean
 }) {
   const [filter, setFilter] = React.useState<FilterValue>('All')
   const [viewerOpen, setViewerOpen] = React.useState(false)
@@ -38,26 +40,28 @@ export default function GalleryClient({
             个人图库，按主题分类整理：人物、动物、风光。图片来自对象存储（S3 兼容）。
           </p>
 
-          <div className="mt-10 flex flex-wrap gap-2">
-            {galleryCategories.map((t) => {
-              const active = t.value === filter
-              return (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setFilter(t.value)}
-                  className={cn(
-                    'h-11 px-5 rounded-pill text-sm font-semibold transition-colors',
-                    active
-                      ? 'bg-[var(--accent)] text-white'
-                      : 'bg-foreground/[0.04] text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06]'
-                  )}
-                >
-                  {t.label}
-                </button>
-              )
-            })}
-          </div>
+          {showFilters && (
+            <div className="mt-10 flex flex-wrap gap-2">
+              {galleryCategories.map((t) => {
+                const active = t.value === filter
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setFilter(t.value)}
+                    className={cn(
+                      'h-11 px-5 rounded-pill text-sm font-semibold transition-colors',
+                      active
+                        ? 'bg-[var(--accent)] text-white'
+                        : 'bg-foreground/[0.04] text-foreground/70 hover:text-foreground hover:bg-foreground/[0.06]'
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -85,9 +89,11 @@ export default function GalleryClient({
 
                   <div className="absolute inset-x-0 bottom-0 p-5">
                     <div className="translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
-                        {item.category}
-                      </div>
+                      {showFilters && (
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
+                          {item.category}
+                        </div>
+                      )}
                       <div className="mt-2 text-sm text-white/70 line-clamp-1">{item.key.split('/').pop()}</div>
                     </div>
                   </div>
@@ -108,4 +114,3 @@ export default function GalleryClient({
     </section>
   )
 }
-

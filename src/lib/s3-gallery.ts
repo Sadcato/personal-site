@@ -22,9 +22,9 @@ export async function listGalleryItems(category: GalleryCategory, limit = 60): P
   try {
     const endpoint = requiredEnv('S3_ENDPOINT')
     const bucket = requiredEnv('S3_BUCKET')
-    const accessKeyId = requiredEnv('S3_ACCESS_KEY_ID')
-    const secretAccessKey = requiredEnv('S3_SECRET_ACCESS_KEY')
     const publicRead = (process.env.S3_PUBLIC_READ ?? 'false').toLowerCase() === 'true'
+    const accessKeyId = publicRead ? '' : requiredEnv('S3_ACCESS_KEY_ID')
+    const secretAccessKey = publicRead ? '' : requiredEnv('S3_SECRET_ACCESS_KEY')
 
     const prefix = getPrefix(category)
     console.log(`[S3-FETCH] Listing ${category} from bucket="${bucket}", prefix="${prefix}", publicRead=${publicRead}`)
@@ -40,50 +40,54 @@ export async function listGalleryItems(category: GalleryCategory, limit = 60): P
     const amzDate = now.toISOString().replace(/[:-]/g, '').replace(/\.\d{3}/, '')
     const dateStamp = amzDate.slice(0, 8)
 
-    const headers: Record<string, string> = {
-      Host: new URL(endpoint).hostname,
-      'X-Amz-Date': amzDate,
-      'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD',
-    }
-
     const canonicalQueryString = Array.from(listUrl.searchParams.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join('&')
 
-    const canonicalRequest = [
-      'GET',
-      `/${bucket}`,
-      canonicalQueryString,
-      Object.entries(headers)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => `${k.toLowerCase()}:${v}`)
-        .join('\n'),
-      '',
-      Object.keys(headers)
-        .sort()
-        .map((k) => k.toLowerCase())
-        .join(';'),
-      'UNSIGNED-PAYLOAD',
-    ].join('\n')
-
-    const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest).digest('hex')
-    const credentialScope = `${dateStamp}/us-east-1/s3/aws4_request`
-    const stringToSign = ['AWS4-HMAC-SHA256', amzDate, credentialScope, canonicalRequestHash].join('\n')
-
-    const kDate = crypto.createHmac('sha256', `AWS4${secretAccessKey}`).update(dateStamp).digest()
-    const kRegion = crypto.createHmac('sha256', kDate).update('us-east-1').digest()
-    const kService = crypto.createHmac('sha256', kRegion).update('s3').digest()
-    const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest()
-    const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex')
-
-    headers['Authorization'] = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${Object.keys(headers)
-      .sort()
-      .map((k) => k.toLowerCase())
-      .join(';')}, Signature=${signature}`
-
     console.log(`[S3-FETCH] Sending ListObjectsV2 request...`)
-    const response = await fetch(listUrl.toString(), { headers })
+    const response = publicRead
+      ? await fetch(listUrl.toString())
+      : await (async () => {
+          const headers: Record<string, string> = {
+            Host: new URL(endpoint).hostname,
+            'X-Amz-Date': amzDate,
+            'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD',
+          }
+
+          const canonicalRequest = [
+            'GET',
+            `/${bucket}`,
+            canonicalQueryString,
+            Object.entries(headers)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => `${k.toLowerCase()}:${v}`)
+              .join('\n'),
+            '',
+            Object.keys(headers)
+              .sort()
+              .map((k) => k.toLowerCase())
+              .join(';'),
+            'UNSIGNED-PAYLOAD',
+          ].join('\n')
+
+          const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+          const credentialScope = `${dateStamp}/us-east-1/s3/aws4_request`
+          const stringToSign = ['AWS4-HMAC-SHA256', amzDate, credentialScope, canonicalRequestHash].join('\n')
+
+          const kDate = crypto.createHmac('sha256', `AWS4${secretAccessKey}`).update(dateStamp).digest()
+          const kRegion = crypto.createHmac('sha256', kDate).update('us-east-1').digest()
+          const kService = crypto.createHmac('sha256', kRegion).update('s3').digest()
+          const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest()
+          const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex')
+
+          headers['Authorization'] = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${Object.keys(headers)
+            .sort()
+            .map((k) => k.toLowerCase())
+            .join(';')}, Signature=${signature}`
+
+          return fetch(listUrl.toString(), { headers })
+        })()
 
     if (!response.ok) {
       throw new Error(`S3 ListObjectsV2 failed: ${response.status} ${response.statusText}`)

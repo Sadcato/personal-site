@@ -14,16 +14,16 @@ export default function About() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-start">
               <div className="space-y-8 text-xl text-foreground/70 leading-relaxed">
                 <p>
-                  我是一名专注于后端开发与智能化系统的全栈工程师。熟练使用 Go-Gin 与 FastAPI 构建高性能服务，擅长 Prisma ORM 与 Redis 实现高效数据管理，精通 WebSocket 与 TCP Socket 开发实时通信系统。
+                  我是一名专注于智能化系统的全栈工程师。熟练使用 Go-Gin 与 FastAPI 构建高性能服务，擅长 Prisma ORM 与 Redis 实现高效数据管理，精通 WebSocket 与 TCP Socket 开发实时通信系统。
                 </p>
                 <p>
-                  我的技术栈涵盖 Next.js API Routes、TypeScript、MySQL/PostgreSQL 数据库设计与优化，以及 Docker 容器化部署。在 AI 集成方面，我有丰富的 GPT-4/Claude 3 调用经验，擅长将 AI 能力融入实际业务场景。
+                  我的技术栈涵盖 Python Next.js API Routes、TypeScript、MySQL/PostgreSQL 数据库设计与优化，以及 Docker 容器化部署。在 AI 集成方面，我有丰富的 GPT-4/Claude 3 调用经验，擅长将 AI 能力融入实际业务场景。
                 </p>
                 <p>
                   我热衷于构建具有实际价值的系统：从 AI 驱动的塔罗牌应用，到实时数据传输的物联网平台，再到航空监控与预警系统。我相信技术的价值在于解决真实问题，提升用户体验与系统稳定性。
                 </p>
                 <p>
-                  目前专注于嵌入式后端开发，使用 Python Socket 与 M1/GPIO 进行硬件通信与控制，同时探索智能化调度与资源管理优化。
+                  目前专注于全栈开发，使用 Python Socket 与 M1/GPIO 进行硬件通信与控制，同时探索智能化调度与资源管理优化。
                 </p>
               </div>
               <div className="aspect-square rounded-apple bg-apple-gray dark:bg-zinc-800 overflow-hidden relative">
