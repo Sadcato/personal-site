@@ -90,22 +90,24 @@ export default function Hero() {
 
           <div className="mt-10 max-w-5xl">
             <motion.div ref={titleRef} style={{ x: magneticX, y: magneticY }}>
-              <motion.h1
-                initial={{ opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: appears.l1.delay, ease: [0.21, 0.47, 0.32, 0.98] }}
-                className="text-[clamp(4rem,7vw,6rem)] leading-[0.98] tracking-[-0.03em] font-sans font-thin"
-              >
-                Crafting Digital
-              </motion.h1>
-              <motion.h1
-                initial={{ opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: appears.l2.delay, ease: [0.21, 0.47, 0.32, 0.98] }}
-                className="text-[clamp(4rem,7vw,6rem)] leading-[0.98] tracking-[-0.03em] font-display italic text-[var(--accent)]"
-              >
-                Experiences
-              </motion.h1>
+              <h1 className="text-[clamp(4rem,7vw,6rem)] tracking-[-0.03em]">
+                <motion.span
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: appears.l1.delay, ease: [0.21, 0.47, 0.32, 0.98] }}
+                  className="block leading-[1.08] font-sans font-thin"
+                >
+                  Crafting Digital
+                </motion.span>
+                <motion.span
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: appears.l2.delay, ease: [0.21, 0.47, 0.32, 0.98] }}
+                  className="block leading-[1.08] font-display italic text-[var(--accent)]"
+                >
+                  Experiences
+                </motion.span>
+              </h1>
             </motion.div>
 
             <motion.p
