@@ -14,11 +14,11 @@ export default function Work() {
     (process.env.GALLERY_PREFIX_LANDSCAPES ?? '') === ''
 
   const itemsPromise = flatBucket
-    ? listGalleryItems('People', 200)
+    ? listGalleryItems('People', 24)
     : Promise.all([
-        listGalleryItems('People', 48),
-        listGalleryItems('Animals', 48),
-        listGalleryItems('Landscapes', 48),
+        listGalleryItems('People', 24),
+        listGalleryItems('Animals', 24),
+        listGalleryItems('Landscapes', 24),
       ]).then((all) => all.flat())
 
   return (
