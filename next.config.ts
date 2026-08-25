@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
     localPatterns: [
       {
         pathname: '/api/gallery/file',
-        search: '?pathname=*',
       },
     ],
     remotePatterns: [
