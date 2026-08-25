@@ -1,11 +1,13 @@
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import GalleryClient from './gallery-client'
-import { listGalleryItems } from '@/lib/s3-gallery'
+import { listGalleryItems } from '@/lib/blob-gallery'
 import type { GalleryItem } from '@/lib/gallery'
 
+export const revalidate = 60
+
 export default function Work() {
-  // Server Component: fetch from S3-compatible storage
+  // Server Component: list images from Vercel Blob
   const flatBucket =
     (process.env.GALLERY_PREFIX_PEOPLE ?? '') === '' &&
     (process.env.GALLERY_PREFIX_ANIMALS ?? '') === '' &&

@@ -16,6 +16,7 @@
     "@next/mdx": "^16.1.6",
     "@types/mdx": "^2.0.13",
     "@vercel/analytics": "^1.5.0",
+    "@vercel/blob": "^2.8.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.37.0",
     "lucide-react": "^0.577.0",

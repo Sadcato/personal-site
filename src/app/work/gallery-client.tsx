@@ -37,7 +37,7 @@ export default function GalleryClient({
         <div className="mb-14">
           <h1 className="text-hero">Gallery</h1>
           <p className="mt-6 text-lg text-foreground/60 max-w-2xl">
-            个人图库，按主题分类整理：人物、动物、风光。图片来自对象存储（S3 兼容）。
+            个人图库，按主题分类整理：人物、动物、风光。图片来自 Vercel Blob。
           </p>
 
           {showFilters && (
@@ -107,7 +107,7 @@ export default function GalleryClient({
 
         {initialItems.length === 0 && (
           <div className="mt-16 rounded-apple bg-foreground/[0.03] p-10 text-foreground/70">
-            目前没有加载到图片。请检查 `.env.local` 的 S3 配置、bucket 与目录前缀是否正确。
+            目前没有加载到图片。请确认已配置 Vercel Blob，且文件在 `photos/` 前缀下。
           </div>
         )}
       </div>
