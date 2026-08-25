@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx'],
   images: {
     unoptimized: false,
+    localPatterns: [
+      {
+        pathname: '/api/gallery/file',
+        search: '?pathname=*',
+      },
+    ],
     remotePatterns: [
       {
         protocol: 'https',
