@@ -37,7 +37,7 @@ export default function GalleryClient({
         <div className="mb-14">
           <h1 className="text-hero">Gallery</h1>
           <p className="mt-6 text-lg text-foreground/60 max-w-2xl">
-            个人图库，按主题分类整理：人物、动物、风光。图片来自 Vercel Blob。
+            个人作品，按主题分类整理：人物、动物、风光。图片存储于 Vercel Blob。
           </p>
 
           {showFilters && (
