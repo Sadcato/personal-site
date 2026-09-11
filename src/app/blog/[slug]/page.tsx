@@ -25,8 +25,7 @@ export default async function BlogPost({
   }
   
   const content = await getPostContent(slug)
-  
-  const contentWithoutMeta = content.replace(/export const meta = \{[\s\S]*?\}\n\n/, '')
+  const contentWithoutFrontmatter = content.replace(/^---\n[\s\S]*?\n---\n\n/, '')
   
   return (
     <main className="min-h-screen">
@@ -50,7 +49,7 @@ export default async function BlogPost({
             </div>
 
             <article className="prose prose-xl prose-zinc dark:prose-invert max-w-none">
-              <MDXRemote source={contentWithoutMeta} />
+              <MDXRemote source={contentWithoutFrontmatter} />
             </article>
           </ScrollReveal>
         </div>

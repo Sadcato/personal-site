@@ -83,6 +83,7 @@
     animation: hero-mesh-shift 18s ease-in-out infinite;
     filter: blur(40px);
     transform: translateZ(0);
+    will-change: transform;
   }
 
   @keyframes hero-mesh-shift {

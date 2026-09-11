@@ -39,6 +39,11 @@ function galleryUrl(pathname: string) {
 }
 
 export async function listGalleryItems(category: GalleryCategory, limit = 60): Promise<GalleryItem[]> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL_OIDC_TOKEN) {
+    // Silently skip when Blob is not configured (local dev)
+    return []
+  }
+
   try {
     const prefix = categoryPrefix(category) || getGalleryRootPrefix()
     const blobs: Awaited<ReturnType<typeof list>>['blobs'] = []
@@ -63,7 +68,7 @@ export async function listGalleryItems(category: GalleryCategory, limit = 60): P
         category,
       }))
   } catch (error) {
-    console.error(
+    console.warn(
       `[BLOB-FETCH] Error listing ${category}:`,
       error instanceof Error ? error.message : error
     )
